@@ -59,6 +59,12 @@ for skill_dir in "$SKILLS_SRC"/*/; do
         cp -r "${skill_dir%/}" "$dest"
     fi
 
+    # Skills that ship their own scripts (jenkins_deploy) need them executable;
+    # git does not always preserve the bit on fresh clones under Windows.
+    if [ -d "${skill_dir%/}/scripts" ]; then
+        chmod +x "${skill_dir%/}"/scripts/*.sh 2>/dev/null || true
+    fi
+
     echo "  + $skill_name -> $dest"
     installed=$((installed + 1))
 done
@@ -67,6 +73,88 @@ echo
 echo "Done. Installed $installed skill(s) into $TARGET_DIR"
 if [ "$LINK_MODE" = "copy" ]; then
     echo "NOTE: files were copied (Windows). Re-run install.sh after updating this repo."
+fi
+
+# --- Helper scripts ----------------------------------------------------------
+# The mantis_* skills call bin/mantis-api.sh instead of raw curl so the command
+# is stable and can be allow-listed once (no permission prompt per API call).
+
+BIN_SRC="$REPO_DIR/bin"
+# The skills reference the canonical path ~/.claude-most/bin/... (it must match
+# the permission rule literally), so always install there; also install into
+# $CONFIG_DIR/bin when a different config dir was chosen.
+BIN_DIRS="$HOME/.claude-most/bin"
+if [ "$CONFIG_DIR" != "$HOME/.claude-most" ]; then
+    BIN_DIRS="$BIN_DIRS $CONFIG_DIR/bin"
+fi
+
+if [ -d "$BIN_SRC" ]; then
+    for bin_dir in $BIN_DIRS; do
+        mkdir -p "$bin_dir"
+        for script in "$BIN_SRC"/*; do
+            [ -f "$script" ] || continue
+            chmod +x "$script" 2>/dev/null || true
+            dest="$bin_dir/$(basename "$script")"
+            rm -rf "$dest"
+            if [ "$LINK_MODE" = "symlink" ]; then
+                ln -s "$script" "$dest"
+            else
+                cp "$script" "$dest"
+            fi
+            echo "  + $(basename "$script") -> $dest"
+        done
+    done
+fi
+
+# --- Permission rule ---------------------------------------------------------
+# Allow the helper without prompting. Idempotent; leaves the rest of the file
+# (theme, env with the personal MANTIS_API_TOKEN, other rules) untouched.
+
+SETTINGS_FILE="$CONFIG_DIR/settings.json"
+if command -v python3 >/dev/null 2>&1; then
+    python3 - "$SETTINGS_FILE" <<'PY'
+import json, os, sys
+
+path = sys.argv[1]
+rules = [
+    "Bash(~/.claude-most/bin/mantis-api.sh:*)",
+    # jenkins_deploy: solo estos tres scripts, nunca `curl` libre, para que el
+    # JENKINS_API_TOKEN no pueda usarse contra cualquier endpoint de Jenkins.
+    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh:*)",
+    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/status.sh:*)",
+    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/discover.sh:*)",
+]
+try:
+    with open(path) as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    data = {}
+except Exception as exc:
+    print(f"WARNING: could not parse {path} ({exc}); add these rules manually:")
+    for rule in rules:
+        print(f"  {rule}")
+    sys.exit(0)
+
+allow = data.setdefault("permissions", {}).setdefault("allow", [])
+added = [rule for rule in rules if rule not in allow]
+if not added:
+    print(f"Permission rules already present in {path}")
+    sys.exit(0)
+
+allow.extend(added)
+os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+with open(path, "w") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+for rule in added:
+    print(f"Permission rule added to {path}: {rule}")
+PY
+else
+    echo "NOTE: python3 not found. Add these to $SETTINGS_FILE permissions.allow:"
+    echo "  Bash(~/.claude-most/bin/mantis-api.sh:*)"
+    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh:*)"
+    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/status.sh:*)"
+    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/discover.sh:*)"
 fi
 
 # --- Set up shell integration ------------------------------------------------

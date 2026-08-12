@@ -1,0 +1,42 @@
+{
+  "$schema_version": "1",
+  "_comment": "Mapeo remote-git -> jobs de Jenkins. La clave es el path del remote sin host ni .git (estable entre developers, cada uno clona donde quiere). Los jobs marcados TODO-* se completan con scripts/discover.sh. Los jobs productivos van en 'blocked': se documentan pero el script los rechaza.",
+  "jenkins_url": "https://jenkins.grupomost.com",
+  "projects": {
+    "producto/geins/web": {
+      "display_name": "GEINS Producto",
+      "folder": "PRODUCTO",
+      "verified": false,
+      "environments": {
+        "test": { "job": "GEINS-TEST", "branch_hint": "develop" },
+        "demo": { "job": "GEINS-DEMO", "branch_hint": "develop" },
+        "release": { "job": "GEINS-RELEASE", "branch_hint": "release", "confirm": true }
+      }
+    },
+    "producto/geins-ypf/web": {
+      "display_name": "GEINS YPF",
+      "folder": "GEINS-YPF",
+      "verified": false,
+      "environments": {
+        "test": { "job": "TEST-GEINS-YPF", "branch_hint": "develop" },
+        "demo": { "job": "DEMO-GEINS-YPF", "branch_hint": "develop" },
+        "release": { "job": "RELEASE-GEINS-YPF", "branch_hint": "release", "confirm": true }
+      },
+      "blocked": {
+        "prod-oil": "PROD-GEINS-YPF-OIL",
+        "prod-refineria": "PROD-GEINS-YPF-REFINERIA",
+        "prod-retail": "PROD-GEINS-YPF-RETAIL"
+      }
+    },
+    "producto/geins-ypflogistica/web": {
+      "display_name": "GEINS YPF Logistica",
+      "folder": "TODO-completar-con-discover",
+      "verified": false,
+      "environments": {
+        "test": { "job": "TODO-completar-con-discover", "branch_hint": "develop" },
+        "demo": { "job": "TODO-completar-con-discover", "branch_hint": "develop" },
+        "release": { "job": "TODO-completar-con-discover", "branch_hint": "release", "confirm": true }
+      }
+    }
+  }
+}

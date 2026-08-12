@@ -27,3 +27,23 @@ for skill_dir in "$SKILLS_SRC"/*/; do
 done
 
 echo "Done. Removed $removed skill(s) from $TARGET_DIR"
+
+# Helper scripts installed by install.sh
+if [ -d "$REPO_DIR/bin" ]; then
+    for bin_dir in "$HOME/.claude-most/bin" "$CONFIG_DIR/bin"; do
+        [ -d "$bin_dir" ] || continue
+        for script in "$REPO_DIR"/bin/*; do
+            [ -f "$script" ] || continue
+            dest="$bin_dir/$(basename "$script")"
+            if [ -L "$dest" ] || [ -e "$dest" ]; then
+                rm -f "$dest"
+                echo "  - removed $dest"
+            fi
+        done
+        rmdir "$bin_dir" 2>/dev/null || true
+    done
+fi
+
+echo
+echo "NOTE: the permission rule Bash(~/.claude-most/bin/mantis-api.sh:*) was left"
+echo "      in $CONFIG_DIR/settings.json - remove it manually if you want it gone."

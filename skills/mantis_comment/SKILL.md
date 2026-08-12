@@ -9,10 +9,16 @@ Build a summary of the work done on a Mantis issue, get the user's approval, the
 
 ## Prerequisites
 
-- Environment variable `MANTIS_API_TOKEN` must be set (same as `mantis_develop`).
-  It is configured per developer under `env`, either in the Claude config dir settings
-  (`$CLAUDE_CONFIG_DIR/settings.json`, e.g. `~/.claude-most/settings.json` — applies to
-  all projects) or in the project's `.claude/settings.local.json` (NOT committed):
+- ALL Mantis API calls go through the helper `~/.claude-most/bin/mantis-api.sh`
+  (installed by `install.sh`), same as `mantis_develop`. Never hand-roll `curl`,
+  `python3` or token-reading shell blocks: the helper resolves the token itself and
+  is allow-listed as `Bash(~/.claude-most/bin/mantis-api.sh:*)`, so it runs without a
+  permission prompt. Write the command exactly with that prefix — any other form
+  (absolute path, `bash <path>`, extra `env` prefix) breaks the match and prompts again.
+- The token is configured per developer under `env` as `MANTIS_API_TOKEN`, either in
+  the Claude config dir settings (`$CLAUDE_CONFIG_DIR/settings.json`, e.g.
+  `~/.claude-most/settings.json` — applies to all projects) or in the project's
+  `.claude/settings.local.json` (NOT committed):
 
   ```json
   {
@@ -22,30 +28,15 @@ Build a summary of the work done on a Mantis issue, get the user's approval, the
   }
   ```
 
-  Claude Code injects it into the session environment; read it from `$MANTIS_API_TOKEN`.
-  If the variable is NOT in the environment (e.g. the session started before it was
-  configured), read it from the settings files — project-local first, then the config
-  dir — the developer has explicitly authorized this; do NOT ask for permission and
-  do NOT echo the token value in the conversation:
+  Do NOT read those files yourself and never echo the token in the conversation.
+- Mantis base URL: `https://mantis.grupomost.com` (override with `MANTIS_BASE_URL`).
 
-  ```bash
-  TOKEN=$(python3 - <<'EOF'
-import json, os
-for path in [".claude/settings.local.json",
-             os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "settings.json")]:
-    try:
-        token = json.load(open(path)).get("env", {}).get("MANTIS_API_TOKEN")
-        if token:
-            print(token)
-            break
-    except OSError:
-        pass
-EOF
-)
-  ```
-- Mantis base URL: `https://mantis.grupomost.com`
+Error handling for the helper — do NOT work around it with inline `curl`:
 
-If the token is not available in any of these places, stop and tell the user how to configure it. Never ask for the token in chat.
+- Exit code 3 (`MANTIS_API_TOKEN not found`): stop and tell the user how to configure the token. Never ask for the token in chat.
+- `No such file or directory` (the helper is not installed on this machine): tell the user
+  to run `git pull && ./install.sh` from their clone of the `most-agent` repo
+  (`https://github.com/manuonda/most-agent`), then retry.
 
 ## Steps
 
@@ -110,10 +101,7 @@ Do NOT post anything to Mantis without an explicit OK. List the files that will 
 ### 4. Post the note
 
 ```bash
-curl -s -X POST -H "Authorization: $MANTIS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://mantis.grupomost.com/api/rest/issues/<ISSUE_NUMBER>/notes" \
-  -d @note.json
+~/.claude-most/bin/mantis-api.sh notes <ISSUE_NUMBER> <path-to-note.json>
 ```
 
 `note.json` (build it in the scratchpad directory, never in the repo):
@@ -144,10 +132,7 @@ If the note states that the work is resolved / ready for testing ("resuelto",
 to **resuelta** (id 80) right after posting the note:
 
 ```bash
-curl -s -X PATCH -H "Authorization: $MANTIS_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  "https://mantis.grupomost.com/api/rest/issues/<ISSUE_NUMBER>" \
-  -d '{"status":{"id":80}}'
+~/.claude-most/bin/mantis-api.sh status <ISSUE_NUMBER> 80
 ```
 
 Status ids in this Mantis: 10 nueva, 20 se necesitan más datos, 30 aceptada,

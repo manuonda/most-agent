@@ -9,42 +9,35 @@ Given a Mantis issue number: fetch its details, update the base branch, create a
 
 ## Prerequisites
 
-- Environment variable `MANTIS_API_TOKEN` must be set with a Mantis API token
-  (Mantis: My Account -> API Tokens -> Create). Each developer uses their own token.
-  Recommended: add it under `env` in the Claude config dir settings
-  (`$CLAUDE_CONFIG_DIR/settings.json`, e.g. `~/.claude-most/settings.json`) so it
-  applies to all projects, or per project in `.claude/settings.local.json` (NOT committed).
-- Mantis base URL: `https://mantis.grupomost.com`
-- If the variable is NOT in the environment (e.g. the session started before it was
-  configured), read it from the settings files — project-local first, then the config
-  dir — the developer has explicitly authorized this; do NOT ask for permission and
-  do NOT echo the token value in the conversation:
+- ALL Mantis API calls go through the helper `~/.claude-most/bin/mantis-api.sh`
+  (installed by `install.sh`). Never hand-roll `curl`, `python3` or token-reading
+  shell blocks: the helper already resolves the token and is allow-listed as
+  `Bash(~/.claude-most/bin/mantis-api.sh:*)`, so it runs without a permission prompt.
+  Write the command exactly with that `~/.claude-most/bin/mantis-api.sh` prefix —
+  any other form (absolute path, `bash <path>`, extra `env` prefix) breaks the
+  allow-list match and makes Claude Code ask again.
+- The Mantis API token (Mantis: My Account -> API Tokens -> Create) is per developer,
+  configured under `env` as `MANTIS_API_TOKEN` in the Claude config dir settings
+  (`$CLAUDE_CONFIG_DIR/settings.json`, e.g. `~/.claude-most/settings.json`) or per
+  project in `.claude/settings.local.json` (NOT committed). The helper reads it from
+  the environment first and falls back to those files on its own — do NOT read them
+  yourself and never echo the token in the conversation.
+- Mantis base URL: `https://mantis.grupomost.com` (override with `MANTIS_BASE_URL`).
 
-  ```bash
-  TOKEN=$(python3 - <<'EOF'
-import json, os
-for path in [".claude/settings.local.json",
-             os.path.join(os.environ.get("CLAUDE_CONFIG_DIR", os.path.expanduser("~/.claude")), "settings.json")]:
-    try:
-        token = json.load(open(path)).get("env", {}).get("MANTIS_API_TOKEN")
-        if token:
-            print(token)
-            break
-    except OSError:
-        pass
-EOF
-)
-  ```
+Error handling for the helper — do NOT work around it with inline `curl`:
 
-If the token is not available in any of these places, stop and tell the user how to configure it. Never ask the user to paste the token in chat.
+- Exit code 3 (`MANTIS_API_TOKEN not found`): stop and tell the user how to configure the token. Never ask the user to paste the token in chat.
+- `No such file or directory` (the helper is not installed on this machine): the machine
+  is missing the install step. Tell the user to run, from their clone of the `most-agent`
+  repo (`https://github.com/manuonda/most-agent`), `git pull && ./install.sh` — that
+  links the helper and adds its permission rule. Then retry.
 
 ## Steps
 
 ### 1. Fetch the issue
 
 ```bash
-curl -s -H "Authorization: $MANTIS_API_TOKEN" \
-  "https://mantis.grupomost.com/api/rest/issues/<ISSUE_NUMBER>"
+~/.claude-most/bin/mantis-api.sh issue <ISSUE_NUMBER>
 ```
 
 From the JSON response extract: `issues[0].summary`, `issues[0].description`,
