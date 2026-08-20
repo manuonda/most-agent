@@ -44,6 +44,25 @@ if [ -d "$REPO_DIR/bin" ]; then
     done
 fi
 
+# Hooks installed by install.sh
+if [ -d "$REPO_DIR/hooks" ]; then
+    for hook_dir in "$HOME/.claude-most/hooks" "$CONFIG_DIR/hooks"; do
+        [ -d "$hook_dir" ] || continue
+        for script in "$REPO_DIR"/hooks/*; do
+            [ -f "$script" ] || continue
+            dest="$hook_dir/$(basename "$script")"
+            if [ -L "$dest" ] || [ -e "$dest" ]; then
+                rm -f "$dest"
+                echo "  - removed $dest"
+            fi
+        done
+        rmdir "$hook_dir" 2>/dev/null || true
+    done
+fi
+
 echo
-echo "NOTE: the permission rule Bash(~/.claude-most/bin/mantis-api.sh:*) was left"
-echo "      in $CONFIG_DIR/settings.json - remove it manually if you want it gone."
+echo "NOTE: settings.json was left untouched. Remove manually if you want them gone:"
+echo "      - permissions.allow: Bash(~/.claude-most/bin/mantis-api.sh:*) and the mantis_deploy rules"
+echo "      - permissions.additionalDirectories"
+echo "      - hooks.PreToolUse -> git-readonly-allow.py (safe to leave: the entry ends"
+echo "        in '|| true', so a missing hook just restores the normal prompts)"

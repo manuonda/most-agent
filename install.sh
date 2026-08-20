@@ -59,7 +59,7 @@ for skill_dir in "$SKILLS_SRC"/*/; do
         cp -r "${skill_dir%/}" "$dest"
     fi
 
-    # Skills that ship their own scripts (jenkins_deploy) need them executable;
+    # Skills that ship their own scripts (mantis_deploy) need them executable;
     # git does not always preserve the bit on fresh clones under Windows.
     if [ -d "${skill_dir%/}/scripts" ]; then
         chmod +x "${skill_dir%/}"/scripts/*.sh 2>/dev/null || true
@@ -106,24 +106,68 @@ if [ -d "$BIN_SRC" ]; then
     done
 fi
 
-# --- Permission rule ---------------------------------------------------------
-# Allow the helper without prompting. Idempotent; leaves the rest of the file
+# --- Hooks -------------------------------------------------------------------
+# git-readonly-allow.py auto-approves read-only git inspection so mantis_develop
+# stops asking on every `cd <other-repo> && git show ...`. Same canonical-path
+# rule as bin/: the settings entry references ~/.claude-most/hooks/... literally.
+
+HOOKS_SRC="$REPO_DIR/hooks"
+HOOK_DIRS="$HOME/.claude-most/hooks"
+if [ "$CONFIG_DIR" != "$HOME/.claude-most" ]; then
+    HOOK_DIRS="$HOOK_DIRS $CONFIG_DIR/hooks"
+fi
+
+if [ -d "$HOOKS_SRC" ]; then
+    for hook_dir in $HOOK_DIRS; do
+        mkdir -p "$hook_dir"
+        for script in "$HOOKS_SRC"/*; do
+            [ -f "$script" ] || continue
+            chmod +x "$script" 2>/dev/null || true
+            dest="$hook_dir/$(basename "$script")"
+            rm -rf "$dest"
+            if [ "$LINK_MODE" = "symlink" ]; then
+                ln -s "$script" "$dest"
+            else
+                cp "$script" "$dest"
+            fi
+            echo "  + $(basename "$script") -> $dest"
+        done
+    done
+fi
+
+# --- Permission rules, extra dirs and hook registration ----------------------
+# Allow the helpers without prompting. Idempotent; leaves the rest of the file
 # (theme, env with the personal MANTIS_API_TOKEN, other rules) untouched.
 
 SETTINGS_FILE="$CONFIG_DIR/settings.json"
+
+# Raiz de los repos de Most, para additionalDirectories. El prompt interactivo
+# que escribe most-projects-dir corre mas abajo, asi que aca reusamos el valor
+# ya guardado; si no hay, el padre de este repo es la respuesta correcta por
+# construccion (most-agent vive dentro de ~/projects/most).
+PROJECTS_DIR_HINT="${MOST_PROJECTS_DIR:-}"
+if [ -z "$PROJECTS_DIR_HINT" ] && [ -f "$CONFIG_DIR/most-projects-dir" ]; then
+    PROJECTS_DIR_HINT="$(cat "$CONFIG_DIR/most-projects-dir" 2>/dev/null)"
+fi
+[ -n "$PROJECTS_DIR_HINT" ] || PROJECTS_DIR_HINT="$(dirname "$REPO_DIR")"
+
 if command -v python3 >/dev/null 2>&1; then
-    python3 - "$SETTINGS_FILE" <<'PY'
+    python3 - "$SETTINGS_FILE" "$PROJECTS_DIR_HINT" <<'PY'
 import json, os, sys
 
 path = sys.argv[1]
+projects_dir = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else os.path.expanduser("~/projects/most")
 rules = [
     "Bash(~/.claude-most/bin/mantis-api.sh:*)",
-    # jenkins_deploy: solo estos tres scripts, nunca `curl` libre, para que el
+    # mantis_deploy: solo estos tres scripts, nunca `curl` libre, para que el
     # JENKINS_API_TOKEN no pueda usarse contra cualquier endpoint de Jenkins.
-    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh:*)",
-    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/status.sh:*)",
-    "Bash(~/.claude-most/skills/jenkins_deploy/scripts/discover.sh:*)",
+    "Bash(~/.claude-most/skills/mantis_deploy/scripts/deploy.sh:*)",
+    "Bash(~/.claude-most/skills/mantis_deploy/scripts/status.sh:*)",
+    "Bash(~/.claude-most/skills/mantis_deploy/scripts/discover.sh:*)",
 ]
+# `|| true` a proposito: si el hook falta o revienta, exit 2 bloquearia el
+# comando. Asi el peor caso es volver a preguntar, nunca bloquear.
+hook_cmd = 'python3 "$HOME/.claude-most/hooks/git-readonly-allow.py" 2>/dev/null || true'
 try:
     with open(path) as fh:
         data = json.load(fh)
@@ -133,28 +177,55 @@ except Exception as exc:
     print(f"WARNING: could not parse {path} ({exc}); add these rules manually:")
     for rule in rules:
         print(f"  {rule}")
+    print(f'  permissions.additionalDirectories += "{projects_dir}"')
+    print(f'  hooks.PreToolUse += Bash -> {hook_cmd}')
     sys.exit(0)
+
+changes = []
 
 allow = data.setdefault("permissions", {}).setdefault("allow", [])
-added = [rule for rule in rules if rule not in allow]
-if not added:
-    print(f"Permission rules already present in {path}")
+for rule in rules:
+    if rule not in allow:
+        allow.append(rule)
+        changes.append(f"permission rule: {rule}")
+
+# mantis_develop cruza entre repos (geins_ypf <-> geins_producto_ypf) y crea
+# worktrees en <proyecto>/worktrees/: sin esto, cada lectura fuera del cwd pide
+# permiso. Es el equivalente permanente de /add-dir.
+extra = data["permissions"].setdefault("additionalDirectories", [])
+if projects_dir not in extra:
+    extra.append(projects_dir)
+    changes.append(f"additionalDirectories: {projects_dir}")
+
+# El hook cubre lo que additionalDirectories no puede: los permisos de Bash se
+# evaluan por string de comando, no por directorio, asi que `cd <otro-repo> &&
+# git show ...` seguiria preguntando.
+entries = data.setdefault("hooks", {}).setdefault("PreToolUse", [])
+if not any(h.get("command") == hook_cmd for e in entries for h in e.get("hooks", [])):
+    entries.append({"matcher": "Bash", "hooks": [
+        {"type": "command", "command": hook_cmd, "timeout": 10}]})
+    changes.append("PreToolUse/Bash hook: git-readonly-allow.py")
+
+if not changes:
+    print(f"Settings already up to date in {path}")
     sys.exit(0)
 
-allow.extend(added)
 os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 with open(path, "w") as fh:
     json.dump(data, fh, indent=2)
     fh.write("\n")
-for rule in added:
-    print(f"Permission rule added to {path}: {rule}")
+for change in changes:
+    print(f"Added to {path}: {change}")
 PY
 else
     echo "NOTE: python3 not found. Add these to $SETTINGS_FILE permissions.allow:"
     echo "  Bash(~/.claude-most/bin/mantis-api.sh:*)"
-    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh:*)"
-    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/status.sh:*)"
-    echo "  Bash(~/.claude-most/skills/jenkins_deploy/scripts/discover.sh:*)"
+    echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/deploy.sh:*)"
+    echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/status.sh:*)"
+    echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/discover.sh:*)"
+    echo "And these keys:"
+    echo "  permissions.additionalDirectories += \"$PROJECTS_DIR_HINT\""
+    echo "  hooks.PreToolUse += { matcher: Bash, command: python3 \"\$HOME/.claude-most/hooks/git-readonly-allow.py\" }"
 fi
 
 # --- Set up shell integration ------------------------------------------------

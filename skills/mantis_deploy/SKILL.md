@@ -1,9 +1,9 @@
 ---
-name: jenkins_deploy
-description: "Dispara y monitorea deploys en el Jenkins de Grupo Most (jenkins.grupomost.com) para los entornos test, demo y release del proyecto en el que esta parado el developer. El proyecto se detecta solo desde el remote git, no desde la ruta local. Trigger: /jenkins_deploy <entorno>, 'deployar a test', 'desplegar a demo', 'subir a release', 'estado del ultimo build', 'que entornos tiene este proyecto'."
+name: mantis_deploy
+description: "Dispara y monitorea deploys en el Jenkins de Grupo Most (jenkins.grupomost.com) para los entornos test, demo y release del proyecto en el que esta parado el developer. El proyecto se detecta solo desde el remote git, no desde la ruta local. Trigger: /mantis_deploy <entorno>, 'deployar a test', 'desplegar a demo', 'subir a release', 'estado del ultimo build', 'que entornos tiene este proyecto', 'deployar en jenkins', 'jenkins deploy'."
 ---
 
-# Jenkins Deploy — Grupo Most
+# Mantis Deploy — deploys por Jenkins en Grupo Most
 
 Dispara builds de deploy en `https://jenkins.grupomost.com` para el repositorio
 donde esta parado el developer, y reporta el resultado.
@@ -39,7 +39,7 @@ ese repo — no asumas que existe `demo`.
   disparo que. **Nunca pidas el token por chat ni lo imprimas.**
 
 - Los scripts se llaman siempre con el prefijo literal
-  `~/.claude-most/skills/jenkins_deploy/scripts/...` porque esa es la forma
+  `~/.claude-most/skills/mantis_deploy/scripts/...` porque esa es la forma
   exacta que esta en la allow-list de permisos. Cualquier otra variante (ruta
   absoluta, `bash <ruta>`, prefijo `env`) rompe el match y hace que Claude Code
   vuelva a pedir permiso.
@@ -54,34 +54,34 @@ ese repo — no asumas que existe `demo`.
 Ver que entornos tiene el repo actual y como quedo el ultimo build de cada uno:
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/status.sh
+~/.claude-most/skills/mantis_deploy/scripts/status.sh
 ```
 
 Deployar (encola el build y devuelve la URL de consola, sin esperar):
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh test
+~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test
 ```
 
 Deployar y esperar el resultado final:
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh test --wait
+~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test --wait
 ```
 
 Con parametros, cuando el job los pide:
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh release -p VERSION=1.4.2
+~/.claude-most/skills/mantis_deploy/scripts/deploy.sh release -p VERSION=1.4.2
 ```
 
 Explorar Jenkins para dar de alta un proyecto nuevo:
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh <CARPETA>
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh --params <CARPETA> <JOB>
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh --suggest <CARPETA>
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh <CARPETA>
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh --params <CARPETA> <JOB>
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh --suggest <CARPETA>
 ```
 
 ## Reglas

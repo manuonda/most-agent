@@ -9,7 +9,7 @@ Las skills viven en este repositorio (única fuente de verdad, versionada en git
 ```mermaid
 flowchart TB
     subgraph repo["Repositorio most-agent (fuente de verdad)"]
-        SK["skills/<br/>mantis_develop · mantis_comment<br/>jenkins_deploy"]
+        SK["skills/<br/>mantis_develop · mantis_comment<br/>mantis_deploy"]
         BIN["bin/mantis-api.sh<br/>(llamadas a la API de Mantis)"]
         INST["install.sh"]
     end
@@ -126,7 +126,7 @@ Las skills de Mantis necesitan `MANTIS_API_TOKEN` (Mantis: My Account → API To
 
 Alternativa: un token específico de proyecto puede definirse en el `.claude/settings.local.json` de ese proyecto (nunca se commitea) con la misma estructura — tiene precedencia para ese proyecto.
 
-### 3. Configurar las credenciales de Jenkins (solo si vas a usar `jenkins_deploy`)
+### 3. Configurar las credenciales de Jenkins (solo si vas a usar `mantis_deploy`)
 
 En el mismo `~/.claude-most/settings.json`, junto al token de Mantis:
 
@@ -189,17 +189,17 @@ Funciona en cualquier repo de la empresa: la skill no depende del proyecto, solo
 |-------|------------|----------|
 | `mantis_develop` | `/mantis_develop <issue>` | Obtiene el issue de Mantis, actualiza `test`, crea un worktree con la rama `feature/mantis_0<issue>`, planifica, implementa y revisa. |
 | `mantis_comment` | `/mantis_comment <issue> [archivos...]` | Resume el trabajo realizado sobre un issue y lo publica como nota en Mantis, con adjuntos opcionales. |
-| `jenkins_deploy` | `/jenkins_deploy <entorno>`, "deployar a test" | Dispara y monitorea deploys en Jenkins (`test`, `demo`, `release`) para el repo donde estás parado. |
+| `mantis_deploy` | `/mantis_deploy <entorno>`, "deployar a test" | Dispara y monitorea deploys en Jenkins (`test`, `demo`, `release`) para el repo donde estás parado. |
 
-## La skill `jenkins_deploy`
+## La skill `mantis_deploy`
 
-Detecta el proyecto desde el **remote git** del directorio actual (no desde la ruta local: cada dev clona donde quiere) y lo busca en `skills/jenkins_deploy/config/projects.json`, que está versionado acá y es igual para todo el equipo. Cada proyecto declara solo los entornos que realmente tiene en su Jenkins.
+Detecta el proyecto desde el **remote git** del directorio actual (no desde la ruta local: cada dev clona donde quiere) y lo busca en `skills/mantis_deploy/config/projects.json`, que está versionado acá y es igual para todo el equipo. Cada proyecto declara solo los entornos que realmente tiene en su Jenkins.
 
 ```bash
-~/.claude-most/skills/jenkins_deploy/scripts/status.sh              # qué entornos hay y cómo quedó el último build
-~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh test         # encola y devuelve la URL de consola
-~/.claude-most/skills/jenkins_deploy/scripts/deploy.sh test --wait  # espera el resultado final
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh --suggest GEINS-YPF   # alta de un proyecto nuevo
+~/.claude-most/skills/mantis_deploy/scripts/status.sh              # qué entornos hay y cómo quedó el último build
+~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test         # encola y devuelve la URL de consola
+~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test --wait  # espera el resultado final
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh --suggest GEINS-YPF   # alta de un proyecto nuevo
 ```
 
 Dos decisiones deliberadas:
@@ -213,8 +213,8 @@ Dos decisiones deliberadas:
 
 ```bash
 cd <el-repo>
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh                    # lista carpetas y jobs
-~/.claude-most/skills/jenkins_deploy/scripts/discover.sh --suggest <CARPETA>   # imprime el bloque JSON
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh                    # lista carpetas y jobs
+~/.claude-most/skills/mantis_deploy/scripts/discover.sh --suggest <CARPETA>   # imprime el bloque JSON
 ```
 
 Revisá el bloque sugerido, pegalo en `config/projects.json`, poné `verified: true` y commiteá: el resto del equipo lo hereda con `git pull`.
