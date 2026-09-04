@@ -17,10 +17,15 @@
 #   6. ~/.claude/settings.json
 #
 # Usage:
-#   mantis-api.sh issue  <issue-number>                  # GET issue (JSON to stdout)
-#   mantis-api.sh notes  <issue-number> <note.json>      # POST a note (body from file)
-#   mantis-api.sh status <issue-number> <status-id>      # PATCH issue status
-#   mantis-api.sh whoami                                 # check the token works
+#   mantis-api.sh issue    <issue-number>                  # GET issue (JSON to stdout)
+#   mantis-api.sh notes    <issue-number> <note.json>      # POST a note (body from file)
+#   mantis-api.sh status   <issue-number> <status-id>      # PATCH issue status
+#   mantis-api.sh whoami                                   # check the token works
+#   mantis-api.sh download <url-or-path> <output-file>     # GET an attachment (binary) to disk
+#                                                           # e.g. a "files"/"attachments" entry
+#                                                           # from `issue`'s JSON. Refuses to send
+#                                                           # the token to any host other than
+#                                                           # $MANTIS_BASE_URL.
 #
 # Exit codes: 0 ok | 2 bad usage | 3 no token | 4 HTTP error (body on stdout)
 
@@ -112,6 +117,32 @@ case "$cmd" in
         ;;
     whoami)
         call -H "Authorization: $TOKEN" "$BASE_URL/api/rest/users/me"
+        ;;
+    download)
+        [ $# -eq 2 ] || die "usage: mantis-api.sh download <url-or-path> <output-file>"
+        url="$1"; out="$2"
+        case "$url" in
+            http://*|https://*)
+                host="$(printf '%s' "$url" | sed -E 's#^[a-zA-Z]+://([^/]+).*#\1#')"
+                base_host="$(printf '%s' "$BASE_URL" | sed -E 's#^[a-zA-Z]+://([^/]+).*#\1#')"
+                [ "$host" = "$base_host" ] || die "ERROR: refusing to send the Mantis token to $host (expected $base_host)" 2
+                full_url="$url"
+                ;;
+            /*)
+                full_url="$BASE_URL$url"
+                ;;
+            *)
+                full_url="$BASE_URL/$url"
+                ;;
+        esac
+        mkdir -p "$(dirname "$out")" 2>/dev/null || true
+        code="$(curl -sS -H "Authorization: $TOKEN" -o "$out" -w '%{http_code}' "$full_url")" || die "ERROR: curl failed" 4
+        case "$code" in
+            2*) echo "Saved to $out" ;;
+            401|403) rm -f "$out"; die "ERROR: HTTP $code - invalid or expired MANTIS_API_TOKEN" 4 ;;
+            404)     rm -f "$out"; die "ERROR: HTTP $code - file not found" 4 ;;
+            *)       rm -f "$out"; die "ERROR: HTTP $code" 4 ;;
+        esac
         ;;
     *)
         usage >&2

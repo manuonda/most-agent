@@ -135,6 +135,28 @@ if [ -d "$HOOKS_SRC" ]; then
     done
 fi
 
+# --- Git credential helper (git.grupomost.com) --------------------------------
+# mantis_develop runs `git fetch origin test` to refresh the base branch before
+# creating a worktree. The GEINS remotes are HTTPS with no credential storage
+# configured on a fresh machine, so that fetch would hang/fail waiting for a
+# username+password prompt. Wire a credential helper scoped ONLY to that host
+# (never touches credentials for any other remote) that reads the token from
+# env vars instead - same per-developer, never-committed pattern already used
+# for MANTIS_API_TOKEN / JENKINS_API_TOKEN. Idempotent: safe to re-run.
+
+GIT_CRED_HOST="https://git.grupomost.com"
+GIT_CRED_HELPER="!$HOME/.claude-most/bin/git-credential-env.sh"
+if command -v git >/dev/null 2>&1; then
+    current_helper="$(git config --global --get "credential.${GIT_CRED_HOST}.helper" 2>/dev/null || true)"
+    if [ "$current_helper" != "$GIT_CRED_HELPER" ]; then
+        git config --global "credential.${GIT_CRED_HOST}.helper" "$GIT_CRED_HELPER"
+        echo "Configured git credential helper for $GIT_CRED_HOST"
+    fi
+    echo "  (set GIT_GRUPOMOST_USER / GIT_GRUPOMOST_TOKEN under \"env\" in"
+    echo "   .claude/settings.local.json or your shell profile - a personal"
+    echo "   access token from git.grupomost.com, not your account password)"
+fi
+
 # --- Permission rules, extra dirs and hook registration ----------------------
 # Allow the helpers without prompting. Idempotent; leaves the rest of the file
 # (theme, env with the personal MANTIS_API_TOKEN, other rules) untouched.

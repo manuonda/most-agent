@@ -23,6 +23,15 @@ Given a Mantis issue number: fetch its details, update the base branch, create a
   the environment first and falls back to those files on its own — do NOT read them
   yourself and never echo the token in the conversation.
 - Mantis base URL: `https://mantis.grupomost.com` (override with `MANTIS_BASE_URL`).
+- Step 2 needs `git fetch` to authenticate against `git.grupomost.com` (HTTPS,
+  no interactive prompt available). This is handled by the credential helper
+  `~/.claude-most/bin/git-credential-env.sh` (wired up by `install.sh`, scoped
+  to that host only), which reads `GIT_GRUPOMOST_USER` / `GIT_GRUPOMOST_TOKEN`
+  from the environment — same per-developer, never-committed pattern as
+  `MANTIS_API_TOKEN`. If those aren't set yet, tell the developer to add them
+  under `env` in `.claude/settings.local.json` (a personal access token from
+  git.grupomost.com, not their account password) — do NOT prompt for a
+  password interactively or embed credentials in a URL.
 
 Error handling for the helper — do NOT work around it with inline `curl`:
 
@@ -45,7 +54,23 @@ From the JSON response extract: `issues[0].summary`, `issues[0].description`,
 
 If the request fails (401/403 = bad token, 404 = issue not found), report the exact problem and stop.
 
-Present the user a short summary of the issue (number, title, status, description, relevant notes) BEFORE creating any branch or worktree.
+If the issue carries attachments (`issues[0].files[]` or `issues[0].attachments[]`,
+depending on the Mantis version — check both), download each one so its content
+can be read during planning:
+
+```bash
+~/.claude-most/bin/mantis-api.sh download <attachment url or id-based path> \
+  .claude/mantis-sessions/<ISSUE_NUMBER>-attachments/<filename>
+```
+
+Use the `download_url`/`url` field from the attachment entry when present, or
+build the path from its `id` per the API version in use. Only download files
+whose extension you can actually read (docs, text, images, pdf); skip others
+and just mention them to the developer. Read the downloaded files before
+building the plan in step 4 — they often contain the actual business rules or
+mockups the free-text description only references.
+
+Present the user a short summary of the issue (number, title, status, description, relevant notes, attachments found) BEFORE creating any branch or worktree.
 
 ### 2. Update the base branch and create the worktree
 
@@ -58,6 +83,12 @@ git -C <repo-root> fetch origin test
 # If the local test branch exists and is not checked out elsewhere, fast-forward it:
 git -C <repo-root> branch -f test origin/test 2>/dev/null || true
 ```
+
+If `fetch` fails with an authentication error (`Authentication failed`,
+`could not read Username`, HTTP 401/403), do NOT retry with embedded
+credentials or fall back to working from a possibly-stale local `test`.
+Stop and tell the developer to set `GIT_GRUPOMOST_USER` / `GIT_GRUPOMOST_TOKEN`
+(see Prerequisites) — the worktree must start from the real, current `test`.
 
 Then create the worktree with the new branch from the UPDATED test:
 
