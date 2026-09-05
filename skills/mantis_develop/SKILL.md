@@ -159,15 +159,24 @@ Once the code compiles and the change is complete:
 ### 7. Close the work session
 
 When the user says the work is done (or pauses it), persist a session record so the work
-can later be summarized and posted to Mantis with the `mantis_comment` skill:
+can later be summarized and posted to Mantis with the `mantis_comment` skill.
 
-- If Engram (mem_save) is available, save an observation with:
+Always write it to the company brain, via the `company_brain` skill's "save" operation
+(see `skills/company_brain/SKILL.md`): `~/.claude-most/brain/mantis/<project-slug>/<ISSUE_NUMBER>.md`,
+with what was done, files changed, pending items, and how it was tested, under the
+`## Qué se hizo` / `## Notas de testing / pendientes` sections. This is the shared,
+cross-machine location — it replaces the old per-worktree `.claude/mantis-sessions/<ISSUE_NUMBER>.md`
+file, which disappeared whenever the worktree was removed and lived under a different path
+per project. Only write the local file here — do NOT commit or push (that's `company_brain`'s
+"publish" operation, only on explicit request); ask the developer if they want to publish it
+now or leave it local for later.
+
+If Engram (mem_save) is ALSO available, additionally save an observation as before (this is a
+personal convenience on top of the brain, not a replacement for it):
   - `title`: "Mantis <ISSUE_NUMBER>: <short summary of work>"
   - `type`: according to the work done (bugfix, feature -> discovery/decision as fits)
   - `topic_key`: `mantis/<ISSUE_NUMBER>/develop`
   - `content`: What was done, Why, Files changed (paths), pending items, and how it was tested.
-- If Engram is NOT available, write the same content to `.claude/mantis-sessions/<ISSUE_NUMBER>.md`
-  inside the worktree (not committed unless the user asks).
 
 ### 8. Notes
 

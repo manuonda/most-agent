@@ -42,10 +42,18 @@ Error handling for the helper — do NOT work around it with inline `curl`:
 
 ### 1. Gather the work context
 
+First, `git -C ~/.claude-most/brain pull` (read-only, safe) so the brain reflects whatever
+teammates already published before you read from it — if it fails (offline, no remote,
+conflict), tell the user and continue with what's on disk.
+
 Collect what was worked on for the issue, in this order:
 
-1. Engram (if available): `mem_search` for topic `mantis/<ISSUE_NUMBER>/develop` and read the full observation.
-2. Local session file: `.claude/mantis-sessions/<ISSUE_NUMBER>.md` in the repo/worktree.
+1. Company brain (primary source now): `~/.claude-most/brain/mantis/*/<ISSUE_NUMBER>.md`
+   (see `skills/company_brain/SKILL.md`) — this is what `mantis_develop` writes at the end
+   of a session.
+2. Engram (if available): `mem_search` for topic `mantis/<ISSUE_NUMBER>/develop` and read the
+   full observation — useful for issues worked before the brain existed, or as extra personal
+   context.
 3. Git history: `git log --oneline` and `git diff --stat` of branch `feature/mantis_0<ISSUE_NUMBER>` against its base.
 4. The current conversation, if the work happened in this session.
 
@@ -146,3 +154,7 @@ resolution), do NOT change the status.
 - On HTTP 201: report success and show the note id from the response.
 - On error (401/403 token, 404 issue, 413 attachment too large): report the exact cause and do not retry blindly.
 - If Engram is available, save an observation under topic `mantis/<ISSUE_NUMBER>/comment` recording that the note was posted and its content.
+- Update the company brain: in `~/.claude-most/brain/mantis/<project-slug>/<ISSUE_NUMBER>.md`, set
+  `estado` in the frontmatter to match the real Mantis status after step 4b (e.g. `resuelto` if it
+  was moved to id 80), and append the posted text under `## Resumen enviado a Mantis`. Only write
+  the local file — do NOT commit or push here either; ask if the developer wants to publish it now.

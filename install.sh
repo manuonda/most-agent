@@ -135,6 +135,36 @@ if [ -d "$HOOKS_SRC" ]; then
     done
 fi
 
+# --- Company brain -----------------------------------------------------------
+# brain/ holds the team's shared Mantis notes (company_brain skill, and the
+# session record mantis_develop/mantis_comment read and write). It must be
+# reachable at the same path regardless of which Most project is active, so
+# it's symlinked whole (like each skill dir, not file-by-file like bin/hooks:
+# brain/ grows subfolders over time and a per-file loop would miss new ones
+# added directly in the most-agent repo without a re-run of install.sh).
+
+BRAIN_SRC="$REPO_DIR/brain"
+BRAIN_DIRS="$HOME/.claude-most"
+if [ "$CONFIG_DIR" != "$HOME/.claude-most" ]; then
+    BRAIN_DIRS="$BRAIN_DIRS $CONFIG_DIR"
+fi
+
+if [ -d "$BRAIN_SRC" ]; then
+    for dir in $BRAIN_DIRS; do
+        mkdir -p "$dir"
+        dest="$dir/brain"
+        if [ -L "$dest" ] || [ -e "$dest" ]; then
+            rm -rf "$dest"
+        fi
+        if [ "$LINK_MODE" = "symlink" ]; then
+            ln -s "$BRAIN_SRC" "$dest"
+        else
+            cp -r "$BRAIN_SRC" "$dest"
+        fi
+        echo "  + brain/ -> $dest"
+    done
+fi
+
 # --- Git credential helper (git.grupomost.com) --------------------------------
 # mantis_develop runs `git fetch origin test` to refresh the base branch before
 # creating a worktree. The GEINS remotes are HTTPS with no credential storage
