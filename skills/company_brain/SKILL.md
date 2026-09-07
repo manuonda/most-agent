@@ -29,7 +29,7 @@ fecha_actualizacion: <YYYY-MM-DD>
 ---
 ```
 
-Body sections (create empty ones if content isn't available yet): `## Qué se hizo`, `## Notas de testing / pendientes`, `## Resumen enviado a Mantis`.
+Body sections (create empty ones if content isn't available yet): `## Qué se hizo`, `## Notas de testing / pendientes`, `## Resumen enviado a Mantis`, `## Deploys` (appended to, one line per deploy, by `mantis_deploy` — see its `SKILL.md`).
 
 This step only writes to the local working tree under `~/.claude-most/brain/`. **Never** run `git commit` or `git push` here — that only happens in the "Publish" operation below, on explicit request.
 
@@ -43,7 +43,18 @@ This step only writes to the local working tree under `~/.claude-most/brain/`. *
 
 ### 3. Publish — trigger: `/company_brain publicar <N>`, "subi la nota del mantis X al brain", "publica el brain del mantis X"
 
-Only runs when the user asks for it explicitly by name — never automatically from `mantis_develop`/`mantis_comment` or from the Query operation.
+Only runs when the user asks for it explicitly by name — never automatically from `mantis_develop` or from the Query operation.
+
+**Exception:** `mantis_comment` and `mantis_deploy` both publish automatically, without
+asking for confirmation here, via the shared helper `~/.claude-most/bin/brain-publish.sh`
+(pull --rebase, commit only that issue's note, push — never force). `mantis_comment` does
+it right after successfully posting a note to Mantis (the text was already approved by the
+developer and is already team-visible via Mantis itself); `mantis_deploy` does it right
+after a deploy finishes on a `feature/mantis_0<N>` branch (a deploy result is a factual
+status, not content that needs review). `mantis_develop`'s session-close save stays
+local-only (it's an in-progress record, not yet reviewed for team consumption) until either
+this explicit publish operation runs, or `mantis_comment`/`mantis_deploy` publish the note
+later as a side effect of their own work.
 
 1. `git -C ~/.claude-most/brain status --short` to show the user exactly what would be committed. If there's nothing to publish for this issue, say so.
 2. `git -C ~/.claude-most/brain pull --rebase` first, to avoid a needless merge commit / conflict with something a teammate already pushed.

@@ -69,6 +69,22 @@ Deployar y esperar el resultado final:
 ~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test --wait
 ```
 
+**`--wait` es el modo por default cuando el usuario pide deployar desde el
+chat.** El script sondea Jenkins hasta que el build termina, imprime
+`Resultado: SUCCESS|FAILURE|ABORTED|...` y sale con codigo 0 solo si fue
+`SUCCESS`. Comunicale ese resultado al usuario tal cual (no alcanza con pasar
+la URL de cola) y segui distinto segun el caso:
+
+- **SUCCESS**: confirmalo. Si el usuario quiere ver el resultado, el skill
+  `mantis_preview` abre el entorno de test en Chrome.
+- **FAILURE / ABORTED / UNSTABLE**: decilo explicitamente y ofrece revisar la
+  consola (la URL que imprime el script). No reintentes el deploy por tu
+  cuenta.
+
+Usa `deploy.sh <entorno>` sin `--wait` solo si el usuario pide explicitamente
+no esperar ("dispara y segui"). En ese caso, para saber como termino despues
+no dispares un deploy nuevo: consulta `status.sh <entorno>`.
+
 Con parametros, cuando el job los pide:
 
 ```bash
@@ -83,6 +99,42 @@ Explorar Jenkins para dar de alta un proyecto nuevo:
 ~/.claude-most/skills/mantis_deploy/scripts/discover.sh --params <CARPETA> <JOB>
 ~/.claude-most/skills/mantis_deploy/scripts/discover.sh --suggest <CARPETA>
 ```
+
+## Registrar el resultado en el company brain
+
+Despues de que `deploy.sh <entorno> --wait` termina (SUCCESS o no), si la rama actual
+sigue la convencion de `mantis_develop` (`feature/mantis_0<ISSUE_NUMBER>`, zero-padded a
+7 digitos), dejá el resultado en la nota del issue para que quede una cronologia de
+deploys sin que nadie tenga que reconstruirla despues:
+
+1. Extrae el numero de issue de la rama (`feature/mantis_00198835` -> `198835`, sacando
+   los ceros a la izquierda). Si la rama NO matchea ese patron (por ejemplo estas parado
+   en `test` o en una rama de release compartida), **no escribas nada en el brain** — no
+   hay un issue puntual al cual asociar el deploy.
+2. Ubica la nota: `~/.claude-most/brain/mantis/*/<ISSUE_NUMBER>.md` (glob, como hace
+   `company_brain`). Si no existe todavia, seguí el operacion "Save/update a note" de
+   `skills/company_brain/SKILL.md` para crearla (necesitas el nombre del proyecto vía
+   `~/.claude-most/bin/mantis-api.sh issue <ISSUE_NUMBER>` para el slug de la carpeta).
+3. Agrega (no reemplaces) una linea bajo una seccion `## Deploys` en esa nota, creandola
+   si no existe, con este formato:
+
+   ```
+   - **<entorno>** — build #<N> (<RESULTADO>), rama `<rama>`, <YYYY-MM-DD HH:MM>
+     Consola: <url>   <!-- solo si RESULTADO no es SUCCESS -->
+   ```
+
+4. Publica automaticamente (sin pedir confirmacion — el resultado es un hecho, no texto a
+   revisar, misma logica que `mantis_comment`):
+
+   ```bash
+   ~/.claude-most/bin/brain-publish.sh <ISSUE_NUMBER>
+   ```
+
+   - Exit 0: mencioná en el resumen que el resultado quedo publicado en el brain (a menos
+     que la salida diga que no habia nada que publicar).
+   - Exit 2/3 (conflicto de pull o push rechazado): reportá la salida exacta del script;
+     la nota queda commiteada local, el developer puede reintentar con
+     `/company_brain publicar <ISSUE_NUMBER>`. Esto no afecta el resultado del deploy en si.
 
 ## Reglas
 
@@ -107,6 +159,11 @@ Explorar Jenkins para dar de alta un proyecto nuevo:
    usuario va a querer abrir.
 7. Si el job falla, ofrece revisar la consola; no vuelvas a disparar el deploy
    sin que el usuario lo pida.
+8. Para mostrar visualmente el resultado en test (abrir el sitio en Chrome),
+   usa el skill `mantis_preview` — no repliques esa logica aca.
+9. Nunca corras `git`/commit/push contra `~/.claude-most/brain` a mano: el
+   unico camino permitido es `~/.claude-most/bin/brain-publish.sh` (ver
+   "Registrar el resultado en el company brain" mas arriba).
 
 ## Errores comunes
 

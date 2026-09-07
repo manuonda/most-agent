@@ -156,5 +156,29 @@ resolution), do NOT change the status.
 - If Engram is available, save an observation under topic `mantis/<ISSUE_NUMBER>/comment` recording that the note was posted and its content.
 - Update the company brain: in `~/.claude-most/brain/mantis/<project-slug>/<ISSUE_NUMBER>.md`, set
   `estado` in the frontmatter to match the real Mantis status after step 4b (e.g. `resuelto` if it
-  was moved to id 80), and append the posted text under `## Resumen enviado a Mantis`. Only write
-  the local file — do NOT commit or push here either; ask if the developer wants to publish it now.
+  was moved to id 80), and append the posted text under `## Resumen enviado a Mantis`.
+
+### 6. Publish the brain note (automatic, only from this skill)
+
+Unlike `mantis_develop` (which only ever writes locally), `mantis_comment` **publishes
+the brain note automatically right after a successful post to Mantis** — no extra
+confirmation needed, because the text was already approved by the developer in step 3
+and is already team-visible via the Mantis note itself; there's nothing left to review
+that publishing would expose early. This is the one place `company_brain`'s manual-only
+publish rule doesn't apply.
+
+Do this only after the HTTP 201 in step 4 (and, if applicable, the status change in 4b), via the
+allow-listed helper (never raw `git` against `~/.claude-most/brain` — same reasoning as using
+`mantis-api.sh` instead of raw `curl`):
+
+```bash
+~/.claude-most/bin/brain-publish.sh <ISSUE_NUMBER>
+```
+
+It pulls with rebase, commits only this issue's note, and pushes; it exits 0 doing nothing if
+there's no local note or no pending changes, and never force-pushes on conflict. `mantis_deploy`
+uses the same helper to publish deploy status (see its `SKILL.md`).
+
+- Exit 0: mention in the summary to the user that the brain note was published (so the whole team sees it on their next read/pull) — unless the output said there was nothing to publish, in which case just don't mention it.
+- Exit 2 (pull --rebase failed) or 3 (push rejected): do NOT force-push or resolve conflicts on your own. Report the script's exact output and tell the developer the note stayed local — they can retry with `/company_brain publicar <ISSUE_NUMBER>` once the issue (network, conflict) is sorted.
+- The Mantis note itself already posted successfully regardless of this step's outcome — a brain publish failure is not a reason to consider step 4 unsuccessful.

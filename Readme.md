@@ -9,8 +9,8 @@ Las skills viven en este repositorio (única fuente de verdad, versionada en git
 ```mermaid
 flowchart TB
     subgraph repo["Repositorio most-agent (fuente de verdad)"]
-        SK["skills/<br/>mantis_develop · mantis_comment<br/>mantis_deploy"]
-        BIN["bin/mantis-api.sh<br/>(llamadas a la API de Mantis)"]
+        SK["skills/<br/>mantis_develop · company_brain · mantis_comment<br/>mantis_deploy · mantis_preview"]
+        BIN["bin/mantis-api.sh + bin/brain-publish.sh<br/>(API de Mantis · publish del brain)"]
         INST["install.sh"]
     end
 
@@ -46,9 +46,18 @@ flowchart LR
     B --> C["Actualiza rama test<br/>y crea worktree<br/>feature/mantis_0200759"]
     C --> D["Planifica e<br/>implementa"]
     D --> E["Code review"]
-    E --> F["/mantis_comment 200759"]
-    F --> G["Publica resumen<br/>como nota en Mantis"]
+    E --> F["Guarda la sesión en<br/>el company brain<br/>(local, sin publicar)"]
+    F --> G["/mantis_deploy test --wait"]
+    G --> H{"Resultado<br/>del build"}
+    H --> I["Brain: agrega línea en<br/>## Deploys + publica<br/>(brain-publish.sh)"]
+    H --> J["/mantis_preview<br/>abre test en Chrome"]
+    I --> K["/mantis_comment 200759"]
+    J --> K
+    K --> L["Publica el resumen<br/>como nota en Mantis"]
+    L --> M["Publica el brain<br/>automáticamente<br/>(brain-publish.sh)"]
 ```
+
+Dos publicaciones automáticas del brain conviven en este flujo (`bin/brain-publish.sh`, ver más abajo): la del deploy (paso I) y la del comentario (paso M). La sesión guardada en el paso F, en cambio, queda **local** hasta que una de esas dos ocurra, o alguien corra `/company_brain publicar 200759` a mano.
 
 ## Instalación
 
@@ -176,6 +185,50 @@ El helper se instala siempre en `~/.claude-most/bin/`, aunque elijas otro direct
 
 Funciona en cualquier repo de la empresa: la skill no depende del proyecto, solo de que el helper esté enlazado en el home del desarrollador.
 
+## El company brain
+
+Base de conocimiento compartida del equipo sobre el trabajo de Mantis: una nota markdown por issue en `brain/mantis/<proyecto-slug>/<issue>.md`, versionada en este mismo repo y symlinkeada como `~/.claude-most/brain` por `install.sh` — se ve en la misma ruta sin importar qué proyecto tengas abierto.
+
+Cada nota tiene cuatro secciones (se crean vacías si todavía no hay contenido):
+
+- `## Qué se hizo` — la escribe `mantis_develop` al cerrar una sesión de trabajo.
+- `## Notas de testing / pendientes`
+- `## Resumen enviado a Mantis` — el texto que `mantis_comment` posteó.
+- `## Deploys` — una línea por deploy (entorno, build, resultado, rama, fecha), la agrega `mantis_deploy`.
+
+**Publicar (commit + push) no siempre es manual.** Hay dos caminos:
+
+- **Manual, explícito**: `/company_brain publicar <issue>` — muestra el diff y pide confirmación antes de commitear. Es el único camino para lo que guarda `mantis_develop` (una sesión en progreso, sin revisar todavía).
+- **Automático, sin preguntar**: `mantis_comment` (justo después de postear la nota a Mantis) y `mantis_deploy` (justo después de que termina un deploy en una rama `feature/mantis_0<issue>`) publican solos, vía `bin/brain-publish.sh`. En ambos casos el contenido ya está aprobado o es un hecho objetivo — no hay nada que revisar antes de que el equipo lo vea.
+
+Hasta que se publica por cualquiera de esos dos caminos, la nota **solo existe en el clon local** de quien la escribió — otro developer que corra `/company_brain <issue>` en su máquina no la va a ver todavía (aunque la ruta `~/.claude-most/brain/...` sea idéntica en ambas). Las lecturas (`/company_brain <issue>`, y el paso 1 de `mantis_comment`) hacen `git pull` antes de responder, así que siempre reflejan lo último publicado por cualquiera del equipo.
+
+## El helper `bin/brain-publish.sh`
+
+Es el **único** camino permitido para hacer `commit`/`push` contra `~/.claude-most/brain` sin que Claude Code pregunte permiso cada vez — mismo motivo que `bin/mantis-api.sh` reemplazando `curl` suelto: un comando estable se puede allow-listear una sola vez.
+
+```bash
+~/.claude-most/bin/brain-publish.sh 200759
+```
+
+Qué hace: `git pull --rebase` → si la nota de ese issue tiene cambios pendientes, `add` + `commit` + `push` solo de ese archivo. Si no hay nota local o no hay cambios, no hace nada (exit 0). Nunca fuerza un push — si el rebase o el push fallan, corta y devuelve el error tal cual, para reintentar después con `/company_brain publicar <issue>`.
+
+```json
+{ "permissions": { "allow": ["Bash(~/.claude-most/bin/brain-publish.sh:*)"] } }
+```
+
+Lo usan `mantis_comment` y `mantis_deploy` (ver arriba). La publicación manual de `company_brain` (`/company_brain publicar <issue>`) sigue usando `git` directo a propósito: ese flujo muestra el diff y pide confirmación antes de commitear, algo distinto de "publicar sin preguntar".
+
+## La skill `mantis_preview`
+
+Complementa a `mantis_deploy`: abre el entorno de **test** del proyecto actual en Chrome (usando la skill `claude-in-chrome`) para ver visualmente los cambios, sin salir del chat. Por ahora cubre solo `test` — `demo` y `release` quedan afuera.
+
+```bash
+~/.claude-most/skills/mantis_preview/scripts/preview-url.sh
+```
+
+No tiene configuración propia: reutiliza `jenkins-api.sh` y `config/projects.json` de `mantis_deploy` para identificar el proyecto y su job `TEST-*`, y lee la URL desde el campo **description** de ese job en Jenkins (ej. `https://test-geins-ypf.grupomost.com/most-geins`) vía la API — nunca hardcodeada acá, así que no se desincroniza si cambia en Jenkins. Si el job no tiene una URL publicada en su description, el script lo dice explícitamente en vez de inventar una.
+
 ## Desinstalación
 
 ```bash
@@ -187,9 +240,11 @@ Funciona en cualquier repo de la empresa: la skill no depende del proyecto, solo
 
 | Skill | Disparador | Qué hace |
 |-------|------------|----------|
-| `mantis_develop` | `/mantis_develop <issue>` | Obtiene el issue de Mantis, actualiza `test`, crea un worktree con la rama `feature/mantis_0<issue>`, planifica, implementa y revisa. |
-| `mantis_comment` | `/mantis_comment <issue> [archivos...]` | Resume el trabajo realizado sobre un issue y lo publica como nota en Mantis, con adjuntos opcionales. |
-| `mantis_deploy` | `/mantis_deploy <entorno>`, "deployar a test" | Dispara y monitorea deploys en Jenkins (`test`, `demo`, `release`) para el repo donde estás parado. |
+| `mantis_develop` | `/mantis_develop <issue>` | Obtiene el issue de Mantis, actualiza `test`, crea un worktree con la rama `feature/mantis_0<issue>`, planifica, implementa y revisa. Al cerrar la sesión, guarda un resumen en el company brain (local). |
+| `company_brain` | `/company_brain <issue>`, "estado del mantis X", "/company_brain publicar <issue>" | Lee y escribe la nota compartida del equipo sobre un issue (qué se hizo, testing, deploys, resumen enviado a Mantis) y, a pedido, la publica (commit+push). |
+| `mantis_deploy` | `/mantis_deploy <entorno>`, "deployar a test" | Dispara y monitorea deploys en Jenkins (`test`, `demo`, `release`) para el repo donde estás parado. Si la rama es `feature/mantis_0<issue>`, deja el resultado en el brain del issue y lo publica solo. |
+| `mantis_preview` | `/mantis_preview`, "mostrame los cambios en test" | Abre el entorno de **test** del proyecto actual en Chrome (vía `claude-in-chrome`), resolviendo la URL desde la *description* del job de Jenkins — nunca hardcodeada. |
+| `mantis_comment` | `/mantis_comment <issue> [archivos...]` | Resume el trabajo realizado sobre un issue y lo publica como nota en Mantis, con adjuntos opcionales. Después, publica el brain automáticamente. |
 
 ## La skill `mantis_deploy`
 
@@ -202,10 +257,13 @@ Detecta el proyecto desde el **remote git** del directorio actual (no desde la r
 ~/.claude-most/skills/mantis_deploy/scripts/discover.sh --suggest GEINS-YPF   # alta de un proyecto nuevo
 ```
 
-Dos decisiones deliberadas:
+`--wait` es el modo por default cuando se dispara desde el chat: el script sondea Jenkins hasta que el build termina e imprime `Resultado: SUCCESS|FAILURE|...`, saliendo con código distinto de 0 si no fue `SUCCESS` — ese resultado se reporta tal cual, no solo la URL de cola.
+
+Tres decisiones deliberadas:
 
 - **No se habilita `Bash(curl:*)`.** La allow-list cubre solo esos tres scripts. Si Claude pudiera hacer `curl` arbitrario con `$JENKINS_API_TOKEN` en el entorno, llegaría a cualquier endpoint de Jenkins, incluida la consola de scripts. La superficie queda acotada a lo que está escrito acá.
 - **Producción no se deploya desde acá.** Los jobs `PROD-*` se declaran en el bloque `blocked` de cada proyecto: quedan documentados, pero el script los rechaza aunque alguien pase el nombre a mano. Un "no" explícito es mejor que un job que no aparece en el mapa.
+- **El resultado queda en el company brain.** Si la rama actual es `feature/mantis_0<issue>` (la convención de `mantis_develop`), el resultado se agrega a `## Deploys` en la nota de ese issue y se publica solo con `bin/brain-publish.sh` (ver "El company brain"). Fuera de esa convención de rama, no se escribe nada — no hay issue al que asociarlo.
 
 ### Dar de alta un proyecto nuevo (gecap, gecon, poncho...)
 

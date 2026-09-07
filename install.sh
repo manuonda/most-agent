@@ -216,6 +216,14 @@ rules = [
     "Bash(~/.claude-most/skills/mantis_deploy/scripts/deploy.sh:*)",
     "Bash(~/.claude-most/skills/mantis_deploy/scripts/status.sh:*)",
     "Bash(~/.claude-most/skills/mantis_deploy/scripts/discover.sh:*)",
+    # mantis_preview: solo lee la description del job TEST-* (reusa las
+    # credenciales de mantis_deploy), nunca dispara builds.
+    "Bash(~/.claude-most/skills/mantis_preview/scripts/preview-url.sh:*)",
+    # brain-publish.sh: commit+push automatico de UNA nota puntual del brain,
+    # usado solo por mantis_comment y mantis_deploy (ver CLAUDE.md) — nunca
+    # `git` suelto contra ~/.claude-most/brain, para que el alcance de lo que
+    # se puede commitear/pushear sin preguntar quede escrito en un solo lugar.
+    "Bash(~/.claude-most/bin/brain-publish.sh:*)",
 ]
 # `|| true` a proposito: si el hook falta o revienta, exit 2 bloquearia el
 # comando. Asi el peor caso es volver a preguntar, nunca bloquear.
@@ -275,6 +283,8 @@ else
     echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/deploy.sh:*)"
     echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/status.sh:*)"
     echo "  Bash(~/.claude-most/skills/mantis_deploy/scripts/discover.sh:*)"
+    echo "  Bash(~/.claude-most/skills/mantis_preview/scripts/preview-url.sh:*)"
+    echo "  Bash(~/.claude-most/bin/brain-publish.sh:*)"
     echo "And these keys:"
     echo "  permissions.additionalDirectories += \"$PROJECTS_DIR_HINT\""
     echo "  hooks.PreToolUse += { matcher: Bash, command: python3 \"\$HOME/.claude-most/hooks/git-readonly-allow.py\" }"
