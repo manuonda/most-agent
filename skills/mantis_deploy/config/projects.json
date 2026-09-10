@@ -37,6 +37,22 @@
         "demo": { "job": "TODO-completar-con-discover", "branch_hint": "develop" },
         "release": { "job": "TODO-completar-con-discover", "branch_hint": "release", "confirm": true }
       }
+    },
+    "producto/poncho-contratistas/back": {
+      "display_name": "Poncho Contratistas - Back",
+      "folder": "PONCHO-CONTRATISTAS",
+      "verified": true,
+      "environments": {
+        "test": { "job": "PONCHO-CONTRATISTAS-BACK-TEST", "branch_hint": "test" }
+      }
+    },
+    "producto/poncho-contratistas/front": {
+      "display_name": "Poncho Contratistas - Front",
+      "folder": "PONCHO-CONTRATISTAS",
+      "verified": true,
+      "environments": {
+        "test": { "job": "PONCHO-CONTRATISTAS-FRONT-TEST", "branch_hint": "test" }
+      }
     }
   }
 }
