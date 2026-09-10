@@ -1,6 +1,6 @@
 ---
 name: mantis_deploy
-description: "Dispara y monitorea deploys en el Jenkins de Grupo Most (jenkins.grupomost.com) para los entornos test, demo y release del proyecto en el que esta parado el developer. El proyecto se detecta solo desde el remote git, no desde la ruta local. Trigger: /mantis_deploy <entorno>, 'deployar a test', 'desplegar a demo', 'subir a release', 'estado del ultimo build', 'que entornos tiene este proyecto', 'deployar en jenkins', 'jenkins deploy'."
+description: "Dispara y monitorea deploys en el Jenkins de Grupo Most (jenkins.grupomost.com) para los entornos test, demo y release del proyecto en el que esta parado el developer. El proyecto se detecta solo desde el remote git, no desde la ruta local. Trigger: /mantis_deploy <entorno>, /mantis_deploy listado, 'deployar a test', 'desplegar a demo', 'subir a release', 'estado del ultimo build', 'que entornos tiene este proyecto', 'deployar en jenkins', 'jenkins deploy', 'que repos estan mapeados', 'listado de jenkins', 'como esta configurado esto'."
 ---
 
 # Mantis Deploy — deploys por Jenkins en Grupo Most
@@ -21,6 +21,50 @@ Cada proyecto expone **solo los entornos que realmente tiene** en su Jenkins:
 uno puede tener `test`, `demo` y `release`, y otro solo `test` y `release`.
 Antes de proponer un deploy, corre `status.sh` para ver que hay disponible en
 ese repo — no asumas que existe `demo`.
+
+**Siempre decile al usuario en que repo/proyecto estas parado.** En cualquier
+invocacion del skill (con o sin entorno), antes de hacer nada mas:
+
+1. Resolvé el proyecto (`git remote get-url origin` → clave en `projects.json`)
+   y decile al usuario que proyecto detectaste.
+2. Si la clave **no esta** en `config/projects.json`: decilo explicitamente
+   ("este repo no esta mapeado en projects.json"), ofrecele mostrarle el
+   `listado` completo (ver abajo) para que vea que otros repos si estan
+   configurados, y segui la regla 5 — no inventes un job ni intentes
+   deployar.
+3. Si esta mapeado, corre `status.sh` y mostrale los entornos disponibles para
+   ese proyecto (y el estado del ultimo build de cada uno). Este paso es
+   siempre informativo, se haya pedido un entorno puntual o no.
+
+## Ver el mapeo completo (`/mantis_deploy listado`)
+
+Trigger: `/mantis_deploy listado`, "que repos estan mapeados", "listado de
+jenkins", "como esta configurado esto", "que proyectos tiene el mantis_deploy".
+
+Esto es **distinto** de `status.sh`: `status.sh` muestra los entornos del
+proyecto donde estas parado ahora; `listado` muestra **todos** los proyectos
+declarados en la configuracion, esten o no relacionados con el repo actual.
+
+No hace falta pegarle a Jenkins ni correr ningun script para esto — es
+informacion estatica versionada en el repo. Simplemente leé con el tool Read
+el archivo `~/.claude-most/skills/mantis_deploy/config/projects.json` (ya
+esta cubierto por el permiso `Read(//home/manuonda/.claude-most/**)`, no hace
+falta Bash) y mostrale al usuario, por cada proyecto declarado bajo
+`projects`:
+
+- la clave de remote (ej. `producto/geins-ypf/web`) — es lo que identifica al
+  repo, no la ruta local de nadie.
+- `display_name` y `folder` de Jenkins.
+- cada entorno en `environments`, con su `job` y si tiene `confirm: true`.
+- los jobs de `blocked` si el proyecto los declara (produccion, nunca
+  deployable desde aca).
+- si algun `job`/`folder` todavia dice `TODO-completar-con-discover`,
+  marcalo como pendiente y recordá que se completa con `discover.sh`.
+
+Al final, resaltá cual de esos proyectos es el que corresponde al repo donde
+esta parado el usuario ahora mismo (comparando contra `git remote get-url
+origin`), y si el repo actual **no** aparece en el listado, decilo
+explicitamente en vez de dejarlo implicito.
 
 ## Prerequisitos
 
@@ -57,11 +101,10 @@ Ver que entornos tiene el repo actual y como quedo el ultimo build de cada uno:
 ~/.claude-most/skills/mantis_deploy/scripts/status.sh
 ```
 
-Deployar (encola el build y devuelve la URL de consola, sin esperar):
-
-```bash
-~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test
-```
+Usa esto (sin deployar) cuando el usuario invoca el skill **sin especificar
+entorno** (`/mantis_deploy` a secas, "deployar", "que entornos tiene esto",
+"estado del ultimo build"). Mostrale los entornos disponibles y esperá a que
+elija uno antes de tocar `deploy.sh`.
 
 Deployar y esperar el resultado final:
 
@@ -69,17 +112,32 @@ Deployar y esperar el resultado final:
 ~/.claude-most/skills/mantis_deploy/scripts/deploy.sh test --wait
 ```
 
-**`--wait` es el modo por default cuando el usuario pide deployar desde el
-chat.** El script sondea Jenkins hasta que el build termina, imprime
-`Resultado: SUCCESS|FAILURE|ABORTED|...` y sale con codigo 0 solo si fue
-`SUCCESS`. Comunicale ese resultado al usuario tal cual (no alcanza con pasar
-la URL de cola) y segui distinto segun el caso:
+**Si el usuario invoca el skill con el entorno explicito** (`/mantis_deploy
+test`, "deployar a test", "subir a demo"), **eso ya es la confirmacion** — no
+le vuelvas a preguntar "¿confirmas?" en el chat. La secuencia es siempre estos
+tres pasos, uno atras del otro, sin pausa a esperar el ok del usuario entre el
+1 y el 2:
+
+1. **Mostra la info del deploy** (a modo informativo, no como gate): proyecto
+   detectado, entorno, job de Jenkins y rama que va a construir (y si el
+   script previamente aviso cambios sin commitear/pushear o rama distinta a
+   la esperada — regla 3 — ahi si frena y pregunta antes de seguir).
+2. **Ejecuta el deploy automaticamente**: `deploy.sh <entorno> --wait`.
+3. **Esperá el resultado final y comunicaselo**: el script sondea Jenkins
+   hasta que el build termina, imprime `Resultado: SUCCESS|FAILURE|ABORTED|...`
+   y sale con codigo 0 solo si fue `SUCCESS`. Comunicale ese resultado al
+   usuario tal cual (no alcanza con pasar la URL de cola) y segui distinto
+   segun el caso:
 
 - **SUCCESS**: confirmalo. Si el usuario quiere ver el resultado, el skill
   `mantis_preview` abre el entorno de test en Chrome.
 - **FAILURE / ABORTED / UNSTABLE**: decilo explicitamente y ofrece revisar la
   consola (la URL que imprime el script). No reintentes el deploy por tu
   cuenta.
+
+Para entornos con `confirm: true` (tipicamente `release`) esto no cambia nada:
+la confirmacion tipeada la sigue pidiendo el script mismo (regla 1), no es un
+gate de chat y no se puede saltear pasando el nombre de entorno.
 
 Usa `deploy.sh <entorno>` sin `--wait` solo si el usuario pide explicitamente
 no esperar ("dispara y segui"). En ese caso, para saber como termino despues
@@ -141,9 +199,16 @@ deploys sin que nadie tenga que reconstruirla despues:
 1. **Nunca pases `--yes`.** Los entornos con `confirm: true` (tipicamente
    `release`) piden que el usuario escriba el nombre del entorno. Esa
    confirmacion la tipea el usuario, no vos.
-2. Antes de deployar, mostra lo que va a pasar (proyecto, entorno, job, rama) y
-   espera el visto bueno del usuario. Para `test` alcanza con confirmacion en el
-   chat; para `release` ademas esta la confirmacion tipeada del script.
+2. Si el usuario invoca el skill con el entorno explicito (`/mantis_deploy
+   test`, "deployar a test", "subir a demo"), eso YA es la confirmacion — no
+   se pregunta de nuevo en el chat. Mostrale a modo informativo el proyecto,
+   entorno, job y rama detectados, y andá directo a `deploy.sh <entorno>
+   --wait`, esperando el resultado final para reportarlo. Si el usuario NO
+   especifico entorno (`/mantis_deploy` a secas, "deployar", "que entornos
+   tiene esto"), corre `status.sh`, mostrale los entornos disponibles y
+   esperá a que elija uno antes de deployar. En ambos casos, para entornos
+   con `confirm: true` (tipicamente `release`) sigue rigiendo la confirmacion
+   tipeada dentro del script (regla 1) — eso nunca se saltea.
 3. Si el script avisa que hay cambios sin commitear, commits sin pushear, o que
    la rama no coincide con la esperada, **frena y preguntale al usuario** antes
    de seguir. Jenkins construye lo que esta en el remote, no lo que hay local.
@@ -152,9 +217,10 @@ deploys sin que nadie tenga que reconstruirla despues:
    Si el usuario pide produccion, explicale que ese camino va por el proceso
    manual del equipo de infraestructura.
 5. Si el repo no esta mapeado en `projects.json`, **no inventes nombres de
-   jobs**: corre `discover.sh --suggest <CARPETA>`, mostrale el bloque JSON al
-   usuario y proponele agregarlo al repo `most-agent` (asi lo hereda todo el
-   equipo con un `git pull`).
+   jobs**: mostrale el `listado` (ver seccion de arriba) para que vea que otros
+   repos si estan configurados, corre `discover.sh --suggest <CARPETA>`,
+   mostrale el bloque JSON al usuario y proponele agregarlo al repo
+   `most-agent` (asi lo hereda todo el equipo con un `git pull`).
 6. Reporta siempre la URL de consola que devuelve el script — es lo que el
    usuario va a querer abrir.
 7. Si el job falla, ofrece revisar la consola; no vuelvas a disparar el deploy
@@ -164,6 +230,9 @@ deploys sin que nadie tenga que reconstruirla despues:
 9. Nunca corras `git`/commit/push contra `~/.claude-most/brain` a mano: el
    unico camino permitido es `~/.claude-most/bin/brain-publish.sh` (ver
    "Registrar el resultado en el company brain" mas arriba).
+10. `/mantis_deploy listado` es de solo lectura (Read sobre `projects.json`,
+    ningun script, ningun request a Jenkins) — se puede mostrar siempre, sin
+    credenciales ni confirmacion, incluso si el repo actual no esta mapeado.
 
 ## Errores comunes
 
