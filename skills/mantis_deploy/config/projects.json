@@ -53,6 +53,22 @@
       "environments": {
         "test": { "job": "PONCHO-CONTRATISTAS-FRONT-TEST", "branch_hint": "test" }
       }
+    },
+    "producto/poncho-contratistas-ypf/back": {
+      "display_name": "Poncho Contratistas YPF - Back",
+      "folder": "PONCHO-CONTRATISTAS-YPF",
+      "verified": true,
+      "environments": {
+        "test": { "job": "PONCHO-CONTRATISTAS-YPF-BACK-TEST", "branch_hint": "test" }
+      }
+    },
+    "producto/poncho-contratistas-ypf/front": {
+      "display_name": "Poncho Contratistas YPF - Front",
+      "folder": "PONCHO-CONTRATISTAS-YPF",
+      "verified": true,
+      "environments": {
+        "test": { "job": "PONCHO-CONTRATISTAS-YPF-FRONT-TEST", "branch_hint": "test" }
+      }
     }
   }
 }
