@@ -147,6 +147,7 @@ Repo conventions for the implementation:
 - Commit messages: `Mantis: <ISSUE_NUMBER> : <short description>` (see git log for style).
 - Build from `GEINS_Jars` with the detected JDK: `mvn clean compile` (use `clean` — incremental builds under a wrong JVM can silently no-op).
 - Never commit or push without the user's confirmation.
+- When a commit does happen, it is authored only by the developer's own git identity (local `user.name`/`user.email`) — do NOT add a `Co-Authored-By: Claude` trailer. See "Commit attribution" in the repo's `CLAUDE.md`.
 
 ### 6. Code review before handoff (MANDATORY)
 

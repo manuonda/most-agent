@@ -59,7 +59,7 @@ later as a side effect of their own work.
 1. `git -C ~/.claude-most/brain status --short` to show the user exactly what would be committed. If there's nothing to publish for this issue, say so.
 2. `git -C ~/.claude-most/brain pull --rebase` first, to avoid a needless merge commit / conflict with something a teammate already pushed.
 3. Show the diff for the note in question and ask for confirmation before committing.
-4. On confirmation: `git -C ~/.claude-most/brain add mantis/<project-slug>/<N>.md && git -C ~/.claude-most/brain commit -m "brain: mantis <N>" && git -C ~/.claude-most/brain push`.
+4. On confirmation: `git -C ~/.claude-most/brain add mantis/<project-slug>/<N>.md && git -C ~/.claude-most/brain commit -m "brain: mantis <N>" && git -C ~/.claude-most/brain push`. Use exactly that message — no `Co-Authored-By: Claude` trailer and no `--author` override; the commit is authored by the developer's own git identity (see "Commit attribution" in the repo's `CLAUDE.md`).
 5. Report the result (success, or the exact git error — do not retry blindly on a push rejection; re-`pull --rebase` and ask before retrying).
 
 ## Notes
