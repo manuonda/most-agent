@@ -7,6 +7,9 @@
 #   - mantis_deploy: a deploy result is a factual status, not content that
 #     needs review before the team sees it.
 #
+# The pull uses --autostash so local, unpublished edits to other notes (or to
+# this one) do not block the rebase; they are restored afterwards untouched.
+#
 # It does nothing (exit 0) when there is no local note for the issue, or the
 # note has no pending changes. It never force-pushes: on a pull --rebase or
 # push failure it stops and reports, leaving the note committed-or-not as it
@@ -35,7 +38,7 @@ if [ -z "$NOTE" ]; then
 fi
 RELPATH="${NOTE#"$BRAIN_DIR"/}"
 
-if ! git -C "$BRAIN_DIR" pull --rebase; then
+if ! git -C "$BRAIN_DIR" pull --rebase --autostash; then
     die "git pull --rebase fallo en $BRAIN_DIR. La nota queda local; resolve (conflicto/red) y reintenta con /company_brain publicar $ISSUE." 2
 fi
 

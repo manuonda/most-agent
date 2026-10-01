@@ -71,7 +71,7 @@ El token se genera en <jenkins>/user/<tu-usuario>/security/ . Nunca lo pegues en
 # GET con manejo de error legible. Uso: jget <url> [tree-query]
 jget() {
     local url="$1" out code body
-    out="$(curl -sS -w $'\n%{http_code}' -u "$AUTH" "$url")" || die "no se pudo contactar a Jenkins ($url)" 4
+    out="$(curl -sSg -w $'\n%{http_code}' -u "$AUTH" "$url")" || die "no se pudo contactar a Jenkins ($url)" 4
     code="${out##*$'\n'}"
     body="${out%$'\n'*}"
     case "$code" in
