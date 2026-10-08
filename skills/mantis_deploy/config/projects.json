@@ -30,12 +30,12 @@
     },
     "producto/geins-ypflogistica/web": {
       "display_name": "GEINS YPF Logistica",
-      "folder": "TODO-completar-con-discover",
-      "verified": false,
+      "folder": "GEINS-YPF-LOGISTICA",
+      "verified": true,
       "environments": {
-        "test": { "job": "TODO-completar-con-discover", "branch_hint": "develop" },
-        "demo": { "job": "TODO-completar-con-discover", "branch_hint": "develop" },
-        "release": { "job": "TODO-completar-con-discover", "branch_hint": "release", "confirm": true }
+        "test": { "job": "GEINS-YPF-LOGISTICA-TEST", "branch_hint": "test" },
+        "demo": { "job": "GEINS-YPF-LOGISTICA-DEMO", "branch_hint": "develop" },
+        "release": { "job": "GEINS-YPF-LOGISTICA-RELEASE", "branch_hint": "release", "confirm": true }
       }
     },
     "producto/poncho-contratistas/back": {
